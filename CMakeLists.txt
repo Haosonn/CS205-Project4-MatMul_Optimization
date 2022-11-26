@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.9)
 project(MatrixMul C)
-set(CMAKE_BUILD_TYPE "Release")
+#set(CMAKE_BUILD_TYPE "Release")
 set(ENVIRONMENT "CC")
 add_definitions(-DWITH_AVX2)
 add_definitions(-mavx2)

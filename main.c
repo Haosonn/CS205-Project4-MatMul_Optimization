@@ -33,7 +33,7 @@ int main() {
 void floatTest(){
     double start, end;
     float *Amem, *Bmem, *Cmem, *A, *B, *C;
-    for (size_t i = 0; i <= 5; i++) {
+    for (size_t i = 0; i <= 4; i++) {
         printf("Matrix size: %ld\n", size[i]);
         Amem = (float *) malloc((size[i] * size[i] + 255) * sizeof(float));
         Bmem = (float *) malloc((size[i] * size[i] + 255) * sizeof(float));
@@ -51,19 +51,27 @@ void floatTest(){
             C[j] = 0;
         }
 
-#ifdef UNIX
         start = omp_get_wtime();
-        matmul_cblas_float(A, B, C, size[i]);
-        endTime("cblas", size[i], start, C);
-#endif
+        matmul_plain_float(A, B, C, size[i], size[i], size[i]);
+        endTime("matmul_plain_float", size[i], start, C);
+
+//        start = omp_get_wtime();
+//        matmul_plain_ikj_float(A, B, C, size[i], size[i], size[i]);
+//        endTime("matmul_plain_ikj_float", size[i], start, C);
+
+//#ifdef UNIX
+//        start = omp_get_wtime();
+//        matmul_cblas_float(A, B, C, size[i]);
+//        endTime("cblas", size[i], start, C);
+//#endif
 
 //        start = omp_get_wtime();
 //        matmul_omp_float(A, B, C, size[i], size[i], size[i]);
 //        endTime("omp", size[i], start, C);
 
-        start = omp_get_wtime();
-        matmul_avx2_div_square_float(A, B, C, size[i]);
-        endTime("avx2_div_square", size[i], start, C);
+//        start = omp_get_wtime();
+//        matmul_avx2_div_square_float(A, B, C, size[i]);
+//        endTime("avx2_div_square", size[i], start, C);
 
 //        start = omp_get_wtime();
 //        matmul_avx2_omp_square_float(A, B, C, size[i]);
