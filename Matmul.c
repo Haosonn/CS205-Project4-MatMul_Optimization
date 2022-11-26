@@ -58,13 +58,6 @@ void matmul_omp_unroll_square_float(const float *A, const float *B, float *C, si
     }
 }
 
-extern inline size_t hsum_epi32(__m256i x){
-    __m128i l = _mm256_extracti128_si256(x, 0);
-    __m128i h = _mm256_extracti128_si256(x, 1);
-    l         = _mm_add_epi32(l, h);
-    l         = _mm_hadd_epi32(l, l);
-    return _mm_extract_epi32(l, 0) + _mm_extract_epi32(l, 1);
-}
 extern inline float hsum128_ps(__m128 v) {
     __m128 shuf = _mm_movehdup_ps(v);
     __m128 sums = _mm_add_ps(v, shuf);
@@ -134,7 +127,7 @@ void matmul_avx2_omp_square_ufloat(const float *A, const float *B, float *C, siz
     __m256 scalar3 = _mm256_setzero_ps();
     __m256 scalar4 = _mm256_setzero_ps();
     omp_set_num_threads(omp_get_num_procs());
-#pragma omp parallel for schedule(dynamic) default(none) private(vec1_B,vec2_B,vec3_B,vec4_B,vecC,sum,scalar1,scalar2,scalar3,scalar4) shared(A,B,C,n)
+//#pragma omp parallel for schedule(dynamic) default(none) private(vec1_B,vec2_B,vec3_B,vec4_B,vecC,sum,scalar1,scalar2,scalar3,scalar4) shared(A,B,C,n)
     for (size_t i = 0; i < n; i++)
     {
         for (size_t k = 0; k < n; k+=4)
@@ -246,7 +239,8 @@ void matmul_avx2_div_square_float(const float *A, const float *B, float *C, size
     float * blockGroupB = (float *)aligned_alloc(256, blockNumber * blockSize * sizeof(float));
 #endif
 
-
+//    omp_set_num_threads(omp_get_num_procs());
+//#pragma omp parallel for schedule(dynamic) default(none) shared(ARearrange,BRearrange,blockLength,blockNumber,n,blockSize,C) private(b1,b2,resBlock,blockGroupA,blockGroupB)
     for (size_t gr = 0; gr < blockNumber; gr++) { //group
         memcpy(blockGroupA, ARearrange + gr * blockSize * blockNumber, blockNumber * blockSize * sizeof(float));
         memcpy(blockGroupB, BRearrange + gr * blockSize * blockNumber, blockNumber * blockSize * sizeof(float));
@@ -267,4 +261,11 @@ void matmul_avx2_div_square_float(const float *A, const float *B, float *C, size
     free(resBlock);
     free(blockGroupA);
     free(blockGroupB);
+}
+
+void matmul_improved_sqaure_float(const float *A, const float *B, float *C, size_t n) {
+    if (n <= 128)
+        matmul_omp_float(A, B, C, n, n, n);
+    else
+        matmul_avx2_div_square_float(A, B, C, n);
 }

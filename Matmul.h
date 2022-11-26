@@ -20,4 +20,6 @@ void matmul_transposed_omp_square_float(const float *A, const float *B, float *C
 
 void matmul_avx2_div_square_float(const float *A, const float *B, float *C, size_t n);
 
+void matmul_improved_sqaure_float(const float *A, const float *B, float *C, size_t n);
+
 #endif
