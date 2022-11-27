@@ -12,7 +12,7 @@
 
 ​	本次Project需求是实现矩阵乘法的加速。
 
-### 2.方法对比
+### 2.方法对比（8k以内）
 
 - ​	测试环境：
 
@@ -243,7 +243,7 @@ extern inline float hsum256_ps(__m256 v) {
 ```
 
 ```c
-void mulBlock(size_t blockLength, const float * b1, const float * b2, float * res) {
+void mulBlock_avx2(size_t blockLength, const float * b1, const float * b2, float * res) {
     omp_set_num_threads(omp_get_num_procs());
 #pragma omp parallel for schedule(dynamic) default(none) shared(b1,b2,res,blockLength)
     for (size_t i=0; i<blockLength; i++) {
@@ -275,7 +275,7 @@ void mulBlock(size_t blockLength, const float * b1, const float * b2, float * re
     }
 }
 
-void addBlock(size_t blockLength, const float *resBlock, float *C, size_t row, size_t col, size_t n) {
+void addBlock_avx2(size_t blockLength, const float *resBlock, float *C, size_t row, size_t col, size_t n) {
     omp_set_num_threads(omp_get_num_procs());
 #pragma omp parallel for schedule(dynamic) default(none) shared(resBlock,C,blockLength,row,col,n)
     for (size_t i=0; i<blockLength; i++) {
@@ -334,8 +334,8 @@ void matmul_avx2_div_square_float(const float *A, const float *B, float *C, size
             for (size_t bg = 0; bg < blockNumber; bg++) {
                 memcpy(b2, blockGroupB + bg * blockSize, blockSize * sizeof(float));
                 memset(resBlock, 0, blockSize * sizeof(float));
-                mulBlock(blockLength, b1, b2, resBlock);
-                addBlock(blockLength, resBlock, C, ag * blockLength, bg * blockLength, n);
+                mulBlock_avx2(blockLength, b1, b2, resBlock);
+                addBlock_avx2(blockLength, resBlock, C, ag * blockLength, bg * blockLength, n);
             }
         }
     }
@@ -354,3 +354,17 @@ void matmul_avx2_div_square_float(const float *A, const float *B, float *C, size
 | (matmul_avx2_div_square_float) Time (s) | 0.030221 | 0.043129 | 0.107231 | 0.764453 | 3.212300 | 24.931550 |
 
 - 最后的matmul_improve函数，小矩阵通过omp实现，大矩阵通过最后的方法实现，与CBLAS对比。![Figure_1](.\Figure_1.png)
+
+### 3.更大矩阵对比
+
+```
+//16k矩阵 由于耗时过长，仅对比两个方法，cblas比我实现的快十倍左右，被cblas暴打，但是感觉单纯从指令集方面的优化已经走的差不多了，无法再进行大幅度的优化了，额外的优化应该要在汇编上下功夫。
+Matrix size: 16384
+cblas takes 28.937930s
+avx2_div_square takes 273.008457s
+//64k矩阵过大，内存不足，无法测试
+```
+
+### 3.后记
+
+​	由于没有显示器，仅完成了avx2指令集的矩阵乘法测试，neon指令集矩阵乘法实现后并未测试。（EAIDK的官网进不去，网线接笔记本的尝试由于没有一些官网的固件下载也失败了）

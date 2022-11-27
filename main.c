@@ -22,7 +22,7 @@ void endTime(const char * funcName, size_t size, double start, float * C) {
 void floatTest();
 
 
-size_t size[] = {16,128,1024,2048, 4096,8192};
+size_t size[] = {16,128,1024,2048, 4096,8192, 16384};
 
 int main() {
     srand(1);
@@ -33,7 +33,7 @@ int main() {
 void floatTest(){
     double start, end;
     float *Amem, *Bmem, *Cmem, *A, *B, *C;
-    for (size_t i = 0; i <= 4; i++) {
+    for (size_t i = 6; i <= 6; i++) {
         printf("Matrix size: %ld\n", size[i]);
         Amem = (float *) malloc((size[i] * size[i] + 255) * sizeof(float));
         Bmem = (float *) malloc((size[i] * size[i] + 255) * sizeof(float));
@@ -51,9 +51,9 @@ void floatTest(){
             C[j] = 0;
         }
 
-        start = omp_get_wtime();
-        matmul_plain_float(A, B, C, size[i], size[i], size[i]);
-        endTime("matmul_plain_float", size[i], start, C);
+//        start = omp_get_wtime();
+//        matmul_plain_float(A, B, C, size[i], size[i], size[i]);
+//        endTime("matmul_plain_float", size[i], start, C);
 
 //        start = omp_get_wtime();
 //        matmul_plain_ikj_float(A, B, C, size[i], size[i], size[i]);
@@ -69,9 +69,9 @@ void floatTest(){
 //        matmul_omp_float(A, B, C, size[i], size[i], size[i]);
 //        endTime("omp", size[i], start, C);
 
-//        start = omp_get_wtime();
-//        matmul_avx2_div_square_float(A, B, C, size[i]);
-//        endTime("avx2_div_square", size[i], start, C);
+        start = omp_get_wtime();
+        matmul_avx2_div_square_float(A, B, C, size[i]);
+        endTime("avx2_div_square", size[i], start, C);
 
 //        start = omp_get_wtime();
 //        matmul_avx2_omp_square_float(A, B, C, size[i]);

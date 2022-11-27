@@ -73,6 +73,7 @@ extern inline float hsum256_ps(__m256 v) {
 }
 
 void matmul_avx2_omp_square_float(const float *A, const float *B, float *C, size_t n) {
+#ifdef __AVX2__
     memset(C, 0, sizeof(float) * n * n);
     __m256 sum = _mm256_setzero_ps();
     __m256 vec1_B = _mm256_setzero_ps();
@@ -113,9 +114,14 @@ void matmul_avx2_omp_square_float(const float *A, const float *B, float *C, size
             }
         }
     }
+#else
+    printf("AVX2 not supported");
+    return;
+#endif
 }
 
 void matmul_avx2_omp_square_ufloat(const float *A, const float *B, float *C, size_t n) {
+#ifdef __AVX2__
     __m256 sum = _mm256_setzero_ps();
     __m256 vec1_B = _mm256_setzero_ps();
     __m256 vec2_B = _mm256_setzero_ps();
@@ -155,9 +161,13 @@ void matmul_avx2_omp_square_ufloat(const float *A, const float *B, float *C, siz
             }
         }
     }
+#else
+    printf("AVX2 not supported");
+    return;
+#endif
 }
 
-void mulBlock(size_t blockLength, const float * b1, const float * b2, float * res) {
+void mulBlock_avx2(size_t blockLength, const float * b1, const float * b2, float * res) {
     omp_set_num_threads(omp_get_num_procs());
 #pragma omp parallel for schedule(dynamic) default(none) shared(b1,b2,res,blockLength)
     for (size_t i=0; i<blockLength; i++) {
@@ -189,7 +199,7 @@ void mulBlock(size_t blockLength, const float * b1, const float * b2, float * re
     }
 }
 
-void addBlock(size_t blockLength, const float *resBlock, float *C, size_t row, size_t col, size_t n) {
+void addBlock_avx2(size_t blockLength, const float *resBlock, float *C, size_t row, size_t col, size_t n) {
     omp_set_num_threads(omp_get_num_procs());
 #pragma omp parallel for schedule(dynamic) default(none) shared(resBlock,C,blockLength,row,col,n)
     for (size_t i=0; i<blockLength; i++) {
@@ -203,6 +213,7 @@ void addBlock(size_t blockLength, const float *resBlock, float *C, size_t row, s
 }
 
 void matmul_avx2_div_square_float(const float *A, const float *B, float *C, size_t n) {
+#ifdef __AVX2__
     size_t MAXSIZE = 512;
     memset(C, 0, n * n * sizeof(float));
     size_t blockLength = n;
@@ -249,8 +260,8 @@ void matmul_avx2_div_square_float(const float *A, const float *B, float *C, size
             for (size_t bg = 0; bg < blockNumber; bg++) {
                 memcpy(b2, blockGroupB + bg * blockSize, blockSize * sizeof(float));
                 memset(resBlock, 0, blockSize * sizeof(float));
-                mulBlock(blockLength, b1, b2, resBlock);
-                addBlock(blockLength, resBlock, C, ag * blockLength, bg * blockLength, n);
+                mulBlock_avx2(blockLength, b1, b2, resBlock);
+                addBlock_avx2(blockLength, resBlock, C, ag * blockLength, bg * blockLength, n);
             }
         }
     }
@@ -261,6 +272,10 @@ void matmul_avx2_div_square_float(const float *A, const float *B, float *C, size
     free(resBlock);
     free(blockGroupA);
     free(blockGroupB);
+#else
+    printf("AVX2 not supported");
+    return;
+#endif
 }
 
 void matmul_improved_sqaure_float(const float *A, const float *B, float *C, size_t n) {
@@ -268,4 +283,115 @@ void matmul_improved_sqaure_float(const float *A, const float *B, float *C, size
         matmul_omp_float(A, B, C, n, n, n);
     else
         matmul_avx2_div_square_float(A, B, C, n);
+}
+
+void mulBlock_neon(size_t blockLength, const float * b1, const float * b2, float * res) {
+#ifdef __ARM_NEON__
+    omp_set_num_threads(omp_get_num_procs());
+#pragma omp parallel for schedule(dynamic) default(none) shared(b1,b2,res,blockLength)
+    for (size_t i=0; i<blockLength; i++) {
+        for (size_t j=0; j<blockLength; j+=4) {
+            for (size_t k=0; k<blockLength; k+=4) {
+                float32x4_t vecA = vld1q_f32(b1 + i * blockLength + k);
+                float32x4_t vecB1 = vld1q_f32(b2 + j * blockLength + k);
+                float32x4_t vecB2 = vld1q_f32(b2 + (j + 1) * blockLength + k);
+                float32x4_t vecB3 = vld1q_f32(b2 + (j + 2) * blockLength + k);
+                float32x4_t vecB4 = vld1q_f32(b2 + (j + 3) * blockLength + k);
+                vecB1 = vmulq_f32(vecA, vecB1);
+                vecB2 = vmulq_f32(vecA, vecB2);
+                vecB3 = vmulq_f32(vecA, vecB3);
+                vecB4 = vmulq_f32(vecA, vecB4);
+                float32x4_t sum {vecB1[0] + vecB1[1] + vecB1[2] + vecB1[3],
+                                 vecB2[0] + vecB2[1] + vecB2[2] + vecB2[3],
+                                 vecB3[0] + vecB3[1] + vecB3[2] + vecB3[3],
+                                 vecB4[0] + vecB4[1] + vecB4[2] + vecB4[3]};
+                float32x4_t vecC = vld1q_f32(res + i * blockLength + j);
+                vecC = vaddq_f32(vecC, sum);
+                vst1q_f32(res + i * blockLength + j, vecC);
+            }
+        }
+    }
+#else
+    printf("NEON not supported");
+    return;
+#endif
+}
+
+void addBlock_neon(size_t blockLength, const float *resBlock, float *C, size_t row, size_t col, size_t n) {
+#ifdef __ARM_NEON__
+    omp_set_num_threads(omp_get_num_procs());
+#pragma omp parallel for schedule(dynamic) default(none) shared(resBlock,C,blockLength,row,col,n)
+    for (size_t i=0; i<blockLength; i++) {
+        for (size_t j=0; j<blockLength; j+=4) {
+            float32x4_t vecC1 = vld1q_f32(C + (row + i) * n + col + j);
+            float32x4_t vecRes = vld1q_f32(resBlock + i * blockLength + j);
+            vecC = vaddq_f32(vecC1, vecRes);
+            vst1q_f32(C + (row + i) * n + col + j, vecC);
+        }
+    }
+#else
+    printf("NEON not supported");
+    return;
+#endif
+}
+
+
+void matmul_neon_div_square_float(const float *A, const float *B, float *C, size_t n) {
+    size_t MAXSIZE = 512;
+    memset(C, 0, n * n * sizeof(float));
+    size_t blockLength = n;
+    if (n > MAXSIZE)
+        blockLength = MAXSIZE;
+    size_t blockSize = blockLength * blockLength;
+    size_t blockNumber = n / blockLength; // number of blocks in one row or column
+
+    float * ARearrange = (float *)malloc(n * n * sizeof(float));
+    float * BRearrange = (float *)malloc(n * n * sizeof(float));
+    size_t firstIndexK = 0;
+    for (size_t k = 0; k<n; k+=blockLength) {
+        for (size_t i = 0; i<n; i++) {
+            for (size_t j = 0; j<blockLength;j++) {
+                ARearrange[firstIndexK + i * blockLength + j] = A[i * n + k + j];
+//                BRearrange[firstIndexK + i * blockLength + j] = BTrans[i * n + k + j];
+                BRearrange[firstIndexK + i * blockLength + j] = B[(k + j) * n + i];
+            }
+        }
+        firstIndexK += blockLength * n;
+    }
+
+#ifndef UNIX
+    float * b1 = (float *)malloc(blockSize * sizeof(float));
+    float * b2 = (float *)malloc(blockSize * sizeof(float));
+    float * resBlock = (float *)malloc(blockSize * sizeof(float));
+    float * blockGroupA = (float *)malloc(blockNumber * blockSize * sizeof(float));
+    float * blockGroupB = (float *)malloc(blockNumber * blockSize * sizeof(float));
+#else
+    float * b1 = (float *)aligned_alloc(256, blockSize * sizeof(float));
+    float * b2 = (float *)aligned_alloc(256, blockSize * sizeof(float));
+    float * resBlock = (float *)aligned_alloc(256, blockSize * sizeof(float));
+    float * blockGroupA = (float *)aligned_alloc(256, blockNumber * blockSize * sizeof(float));
+    float * blockGroupB = (float *)aligned_alloc(256, blockNumber * blockSize * sizeof(float));
+#endif
+
+    for (size_t gr = 0; gr < blockNumber; gr++) { //group
+        memcpy(blockGroupA, ARearrange + gr * blockSize * blockNumber, blockNumber * blockSize * sizeof(float));
+        memcpy(blockGroupB, BRearrange + gr * blockSize * blockNumber, blockNumber * blockSize * sizeof(float));
+        for (size_t ag = 0; ag < blockNumber; ag++) {
+            memcpy(b1, blockGroupA + ag * blockSize, blockSize * sizeof(float));
+            for (size_t bg = 0; bg < blockNumber; bg++) {
+                memcpy(b2, blockGroupB + bg * blockSize, blockSize * sizeof(float));
+                memset(resBlock, 0, blockSize * sizeof(float));
+                mulBlock_avx2(blockLength, b1, b2, resBlock);
+                addBlock_avx2(blockLength, resBlock, C, ag * blockLength, bg * blockLength, n);
+            }
+        }
+    }
+    free(ARearrange);
+    free(BRearrange);
+    free(b1);
+    free(b2);
+    free(resBlock);
+    free(blockGroupA);
+    free(blockGroupB);
+
 }
